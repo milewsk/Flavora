@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: tastely-db
+    environment:
+      POSTGRES_DB: tastely_dev
+      POSTGRES_USER: tastely
+      POSTGRES_PASSWORD: tastely123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tastely"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+backend:
+    build:
+      context: ./src/backend
+      dockerfile: ../../infrastructure/docker/backend.Dockerfile
+    container_name: tastely-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres;Database=tastely_dev;Username=tastely;Password=tastely123
+      - ASPNETCORE_URLS=http://+:5000
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./src/backend:/app
+      - /app/bin
+      - /app/obj
+
+  frontend:
+    build:
+      context: ./src/frontend
+      dockerfile: ../../infrastructure/docker/frontend.Dockerfile
+    container_name: tastely-web
+    environment:
+      - VITE_API_URL=http://localhost:5000/api
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./src/frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
